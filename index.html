@@ -9,8 +9,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 修正：使用 lucide-react 的 UMD 版本 -->
-    <script src="https://unpkg.com/lucide-react"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #FDFBF7; scroll-behavior: smooth; }
@@ -19,7 +17,7 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .fade-in { animation: fadeIn 0.8s forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        .image-sketch { filter: grayscale(1) contrast(1.2) brightness(1.05) sepia(0.1); }
+        .image-sketch { filter: grayscale(1) contrast(1.25) brightness(1.05) sepia(0.15); transition: opacity 1s ease-in-out; }
         .btn-active:active { transform: scale(0.98); }
     </style>
 </head>
@@ -29,29 +27,42 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
         
-        // 從 LucideReact 全域變數中取得組件
-        const { 
-            ArrowLeft, 
-            ChevronRight, 
-            Send, 
-            CheckCircle, 
-            Loader2, 
-            Shield, 
-            User, 
-            Phone, 
-            MessageSquare, 
-            Heart, 
-            Image: ImageIcon 
-        } = LucideReact;
+        // --- 內嵌 SVG 圖標組件 (解決 Lucide 載入報錯問題) ---
+        const Icons = {
+            ArrowLeft: () => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+            ),
+            ChevronRight: ({ className }) => (
+                <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            ),
+            Send: () => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            ),
+            CheckCircle: ({ className }) => (
+                <svg className={className} width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+            ),
+            Loader2: ({ className }) => (
+                <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            ),
+            Shield: ({ className }) => (
+                <svg className={className} width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+            ),
+            Heart: ({ className }) => (
+                <svg className={className} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+            ),
+            ImageIcon: ({ size = 48 }) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            )
+        };
 
         // ==========================================
         // 1. 重要設定區 (實作時請填入您的 API 資訊)
         // ==========================================
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxcgIEXP7tOjiVqWbB4yjwFebYOeXKRKNsg7Rdv0K9CC9qTmxassSWo2h7FRz7TGpFgFg/exec"; // 貼上您的 Google Apps Script 網頁應用程式網址
-        const GEMINI_API_KEY = "AIzaSyDlmJvI7v0oK1NHuR35sSawfHT7F-TeGkI";    // 貼上您的 Gemini API Key.
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxcgIEXP7tOjiVqWbB4yjwFebYOeXKRKNsg7Rdv0K9CC9qTmxassSWo2h7FRz7TGpFgFg/exec"; 
+        const GEMINI_API_KEY = "AIzaSyDlmJvI7v0oK1NHuR35sSawfHT7F-TeGkI"; // 請在此放入您申請的 39 字元金鑰
 
         // ==========================================
-        // 2. 題目資料
+        // 2. 題目與建議數值資料
         // ==========================================
         const scenarioData = [
             {
@@ -59,23 +70,23 @@
                 title: "意外與責任",
                 scenario: "正準備穿過馬路，卻看見路口發生嚴重車禍，一人倒在車前。你不禁想，如果那是你，你留下的愛是否足夠支撐家人接下來五到十年的生活？",
                 query: "目前的保險規劃，是否有「1,000 萬」以上的身故/失能保障？",
-                imagePrompt: "A high-quality realistic pencil sketch, POV perspective. Standing at a crosswalk, seeing a car accident in the middle of the road. People are nervous. Deep shadows, fine graphite texture.",
+                imagePrompt: "A high-quality realistic pencil sketch, POV perspective. Standing at a city crosswalk, seeing a car accident in the middle of the road. Emotional atmosphere, deep shadows, fine graphite texture.",
                 options: ["非常有信心，已規劃 1,000 萬以上", "有規劃，但額度低於 1,000 萬", "目前完全沒有意外險規劃"]
             },
             {
                 id: 'q2',
                 title: "骨折與休養",
-                scenario: "看著前方傷者嚴重骨折，你低下頭看著自己的腿。若這發生在正要工作的你，接下來三個月不能賺錢，風險該如何轉嫁？",
+                scenario: "看著前方傷者嚴重骨折，你低下頭看著自己的腿。若這發生在工作路上的你，接下來三個月不能工作賺錢，風險該如何轉嫁？",
                 query: "你的保障能否在不必住院的情況下，補貼「每日 3,000 元」的薪資損失？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Looking down at one's own leg in a plaster cast. Detailed graphite art.",
+                imagePrompt: "A realistic pencil sketch, POV perspective. Looking down at one's own leg in a plaster cast resting on a chair. Detailed graphite art, fine lines.",
                 options: ["沒問題，每日補貼超過 3,000 元", "有部分補貼，但不足 3,000 元", "目前沒有規劃骨折未住院補貼"]
             },
             {
                 id: 'q3',
                 title: "醫療品質的權利",
                 scenario: "在醫院等候時，聽見隔壁討論自費微創手術。你想起如果今天要動刀的是你，你是否擁有不看存摺、直接選最好技術的權利？",
-                query: "目前的實支實付額度，是否足以支付「20 萬」以上的自費雜費？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Inside a consultation room, doctor points to a monitor showing a surgery simulation.",
+                query: "目前的實支實付額度，是否足以支付「20 萬」以上的自費醫療雜費？",
+                imagePrompt: "A realistic pencil sketch, POV perspective. Inside a consultation room, a doctor points to a monitor showing a surgery simulation.",
                 options: ["足夠，自費雜費額度超過 20 萬", "有實支實付，但額度不足 20 萬", "目前僅有定額給付，無自費雜費保障"]
             },
             {
@@ -83,7 +94,7 @@
                 title: "住院後的隱形成本",
                 scenario: "路過病房區，看到家屬拎著大包小包營養品與看護。住院不只是收據上的開銷，往返車資與隱藏開支才是最磨人的心累。",
                 query: "除了醫療單據，你是否有一筆「每日 3,000 元」的定額補償來支付這些雜支？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Hospital hallway, family members carrying heavy bags of supplies.",
+                imagePrompt: "A realistic pencil sketch, POV perspective. Walking down a hospital hallway, seeing family members carrying heavy bags of supplies.",
                 options: ["有，每日定額給付超過 3,000 元", "有，但每日補貼低於 3,000 元", "目前沒有這類住院定額保障"]
             },
             {
@@ -91,23 +102,23 @@
                 title: "長期的尊嚴",
                 scenario: "誤入了長照護理區，一位老人坐臥在床上無助地望向窗外。你想起若有一天自己失去自理能力，你希望如何被對待？",
                 query: "當風險發生，你是否有信心每月領取「8 萬」以上的扶助金來支付專業看護？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Looking into a patient room, an elderly person looking out the window at sunlight. Emotional.",
+                imagePrompt: "A realistic pencil sketch, POV perspective. Looking into a patient room, an elderly person sitting on the edge of the bed looking out the window.",
                 options: ["非常有信心，每月額度超過 8 萬", "有規劃長照/失能，但每月不到 8 萬", "目前完全沒有長照/失能相關規劃"]
             },
             {
                 id: 'q6',
                 title: "抗癌的底氣",
                 scenario: "看著門診外的標靶藥物 DM，動輒百萬且多在門診支付。你想著如果診斷書突然開下來，你是否有足夠的銀彈迎戰？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Holding a medical brochure about cancer targeted therapy.",
                 query: "若不幸確診癌症，你戶頭是否能立刻領到「200 萬」的一次給付金？",
+                imagePrompt: "A realistic pencil sketch, POV perspective. A hand holding a medical brochure about cancer targeted therapy.",
                 options: ["已規劃，確診即領 200 萬以上", "有規劃，但一次金不到 200 萬", "目前僅有傳統型癌症險或沒規劃"]
             },
             {
                 id: 'q7',
                 title: "重大疾病的衝擊",
-                scenario: "排隊領藥時看見長輩拿著重大傷病卡。你想起這病不一定奪命，但復健路長，你需要穩定持續的收入支撐生活。",
+                scenario: "排隊領藥時看見長輩拿著重大傷病卡。你想起這病不一定奪命，但復健路長。你需要穩定持續的收入支撐生活。",
                 query: "如果同樣情況發生，你有把握每個月擁有「5 萬」來支撐生活兩年嗎？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Standing at a pharmacy window holding a health card.",
+                imagePrompt: "A realistic pencil sketch, POV perspective. Standing at a pharmacy window holding a Major Illness card.",
                 options: ["有信心，保障足夠支付 5 萬/月", "有規劃，但無法支撐到 5 萬/月", "目前完全沒有重大傷病相關規劃"]
             },
             {
@@ -115,15 +126,15 @@
                 title: "遺留的愛",
                 scenario: "看著熟睡中的孩子。那一刻你明白，你的生命已不再只屬於你自己。如果明天就是終點，你留下的資源是否足夠讓他們無憂長大？",
                 query: "你的壽險規劃，是否足以償還剩餘房貸並留下「500 萬」教育預算？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Looking down at a sleeping baby in a cradle, soft light.",
-                options: ["足夠，愛已完整託付 (500 萬以上)", "有規劃，但可能不夠償還房貸或教育", "目前尚未有壽險規劃"]
+                imagePrompt: "A realistic pencil sketch, POV perspective. Looking down at a sleeping baby in a cradle, soft shading.",
+                options: ["足夠，愛已完整託付 (500 萬以上)", "有規劃，但可能不夠償還房貸或教育預算", "目前尚未有壽險規劃"]
             },
             {
                 id: 'q9',
                 title: "財富的守護",
-                scenario: "路過銀行，看見巨大的股市走勢海報。紅綠線條有起有落、劇烈波動。你想起辛苦存下的積蓄不該被一場大病侵蝕。",
+                scenario: "路過銀行，看見巨大的股市走勢海報。紅綠線條起伏劇烈。你想起辛苦存下的積蓄不該被一場大病侵蝕。",
                 query: "你是否偏好透過「保本且穩定」的配置，讓保障與資產在波動市場中同時增長？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Bank window poster with stock market chart and shield icon.",
+                imagePrompt: "A realistic pencil sketch, POV perspective. Bank window with a poster showing a volatile stock market chart and a shield icon.",
                 options: ["感興趣，希望保障與增值兼具", "不需要增值，我只要純保障", "目前已有其他理財工具"]
             },
             {
@@ -131,7 +142,7 @@
                 title: "推開家門的瞬間",
                 scenario: "手握家門把手，推開門，家人的問候讓你明白，今天這一路上的體悟全是為了守護這個溫暖的出口。",
                 query: "你願意讓專業顧問協助你，將這些擔憂轉化為一份確定的防線嗎？",
-                imagePrompt: "A realistic pencil sketch, POV perspective. Hand turning a door handle to reveal a warm living room light.",
+                imagePrompt: "A realistic pencil sketch, POV perspective. A hand turning a door handle to reveal a warm living room light.",
                 options: ["我願意，請安排顧問聯繫我", "想先看詳細分析報告再決定"]
             }
         ];
@@ -153,7 +164,7 @@
             }, [step, isFinished]);
 
             const generateImage = async (prompt, idx) => {
-                if (!GEMINI_API_KEY) return;
+                if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("您的")) return;
                 setImgLoading(true);
                 try {
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${GEMINI_API_KEY}`, {
@@ -167,21 +178,22 @@
                             [idx]: `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`
                         }));
                     }
-                } catch (e) { console.error("Img Error", e); }
+                } catch (e) { console.error("Img Gen Fail", e); }
                 finally { setImgLoading(false); }
             };
 
             const handleSelect = (idx) => {
                 const newAns = [...answers];
-                newAns[step] = { q: scenarioData[step].title, a: scenarioData[step].options[idx], score: idx };
+                newAns[step] = { q: scenarioData[step].title, a: scenarioData[step].options[idx], status: idx };
                 setAnswers(newAns);
-                if (step < 9) setStep(step + 1); else {
+                if (step < 9) setStep(step + 1); 
+                else {
                     setIsFinished(true);
-                    window.scrollTo(0, 0);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
             };
 
-            const submitLead = async () => {
+            const submitData = async () => {
                 if (!lead.name || !lead.phone) return;
                 setIsSubmitting(true);
                 try {
@@ -197,7 +209,7 @@
                         })
                     });
                     setIsSuccess(true);
-                } catch (e) { alert("提交失敗"); }
+                } catch (e) { alert("發送失敗，請確認 Google 腳本網址"); }
                 finally { setIsSubmitting(false); }
             };
 
@@ -205,38 +217,57 @@
                 return (
                     <div className="min-h-screen bg-[#FDFBF7] py-20 px-6 max-w-2xl mx-auto paper-texture overflow-y-auto">
                         <div className="text-center mb-32 fade-in">
-                            <Shield className="w-16 h-16 mx-auto text-[#C5A059] mb-6" />
+                            <Icons.Shield className="w-16 h-16 mx-auto text-[#C5A059] mb-6" />
                             <h1 className="text-4xl font-black mb-4">生命旅程診斷書</h1>
                             <p className="text-gray-400 italic">守護，是給家人最確定的禮物</p>
                         </div>
-                        <div className="space-y-48 mb-60">
+
+                        <div className="space-y-60 mb-80">
                             {answers.map((ans, i) => (
                                 <div key={i} className="text-center fade-in">
-                                    <span className="text-[10px] font-bold text-[#C5A059] tracking-widest block mb-4 uppercase">POINT {i+1}</span>
-                                    <h3 className="text-3xl font-bold mb-4">{ans.q}</h3>
+                                    <span className="text-[10px] font-bold text-[#C5A059] tracking-widest block mb-4 uppercase">Point {i+1}</span>
+                                    <h3 className="text-4xl font-bold mb-8">{ans.q}</h3>
                                     <p className="text-gray-400 text-sm mb-12 italic">您的現狀：{ans.a}</p>
-                                    <div className="max-w-xl mx-auto text-xl leading-relaxed text-[#2D3436] font-light">
-                                        {ans.score === 0 ? <span className="text-green-700">配置優良！您已建立堅實防線。</span> : ans.score === 1 ? <span className="text-[#C5A059]">意識正確，但額度稍顯單薄，建議微調。</span> : <span className="text-red-600">這是必須正視的缺口，建議優先諮詢補強。</span>}
+                                    <div className="max-w-xl mx-auto text-2xl leading-relaxed text-[#2D3436] font-light">
+                                        {ans.status === 0 ? 
+                                            <span className="text-[#2E865F] font-medium border-l-4 border-[#2E865F] pl-6 py-2 bg-[#2E865F]/5">卓越！您的風險意識已築起堅實防線。</span> :
+                                            ans.status === 1 ?
+                                            <span className="text-[#C5A059] font-medium border-l-4 border-[#C5A059] pl-6 py-2 bg-[#C5A059]/5">觀念正確，但額度稍顯單薄，建議微調。</span> :
+                                            <span className="text-[#D63031] font-medium border-l-4 border-[#D63031] pl-6 py-2 bg-[#D63031]/5">必須正視的缺口，建議優先補強。</span>
+                                        }
                                     </div>
                                 </div>
                             ))}
                         </div>
+
                         {!isSuccess ? (
                             <div className="bg-white p-10 sm:p-20 rounded-[60px] shadow-2xl border mb-20 fade-in">
-                                <h2 className="text-3xl font-bold mb-8 text-center">預約專業精算分析</h2>
-                                <div className="space-y-10 mb-12">
-                                    <input className="w-full py-4 text-2xl border-b-2 outline-none focus:border-[#C5A059] bg-transparent" placeholder="如何稱呼您" onChange={e => setLead({...lead, name: e.target.value})} />
-                                    <input className="w-full py-4 text-2xl border-b-2 outline-none focus:border-[#C5A059] bg-transparent" placeholder="聯絡手機" onChange={e => setLead({...lead, phone: e.target.value})} />
-                                    <input className="w-full py-4 text-2xl border-b-2 outline-none focus:border-[#C5A059] bg-transparent" placeholder="LINE ID (選填)" onChange={e => setLead({...lead, line: e.target.value})} />
+                                <div className="text-center mb-16">
+                                    <h2 className="text-4xl font-bold mb-4">預約專業精算分析</h2>
+                                    <p className="text-gray-400 italic leading-relaxed">我們會根據您的回答，為您量身打造一份完整的保障建議書。</p>
                                 </div>
-                                <button onClick={submitLead} disabled={isSubmitting} className="w-full py-6 bg-[#C5A059] text-white rounded-3xl font-bold text-2xl active:scale-95 transition-all shadow-xl disabled:opacity-30 flex items-center justify-center gap-3">
-                                    {isSubmitting ? <Loader2 className="animate-spin" /> : <Send />}
-                                    <span>送出並領取報告</span>
+                                <div className="space-y-12 mb-16">
+                                    <div className="group">
+                                        <label className="text-[10px] font-bold text-[#A0A0A0] uppercase block mb-2 tracking-widest">如何稱呼您</label>
+                                        <input className="w-full py-4 text-3xl border-b-2 border-gray-100 focus:border-[#C5A059] outline-none bg-transparent transition-all" type="text" placeholder="王小明 / 陳小姐" onChange={e => setLead({...lead, name: e.target.value})} />
+                                    </div>
+                                    <div className="group">
+                                        <label className="text-[10px] font-bold text-[#A0A0A0] uppercase block mb-2 tracking-widest">聯絡手機</label>
+                                        <input className="w-full py-4 text-3xl border-b-2 border-gray-100 focus:border-[#C5A059] outline-none bg-transparent transition-all" type="tel" placeholder="09XX-XXX-XXX" onChange={e => setLead({...lead, phone: e.target.value})} />
+                                    </div>
+                                    <div className="group">
+                                        <label className="text-[10px] font-bold text-[#A0A0A0] uppercase block mb-2 tracking-widest">LINE ID (選填)</label>
+                                        <input className="w-full py-4 text-3xl border-b-2 border-gray-100 focus:border-[#C5A059] outline-none bg-transparent transition-all" type="text" placeholder="方便顧問傳送報表" onChange={e => setLead({...lead, line: e.target.value})} />
+                                    </div>
+                                </div>
+                                <button onClick={submitData} disabled={isSubmitting} className="w-full py-6 bg-[#C5A059] text-white rounded-3xl font-bold text-2xl active:scale-95 transition-all shadow-xl disabled:opacity-30 flex items-center justify-center gap-3">
+                                    {isSubmitting ? <Icons.Loader2 className="animate-spin" /> : <Icons.Send />}
+                                    <span>送出數據並領取報告</span>
                                 </button>
                             </div>
                         ) : (
                             <div className="text-center p-20 bg-white rounded-[50px] shadow-xl fade-in">
-                                <CheckCircle className="w-20 h-20 text-green-600 mx-auto mb-6" />
+                                <Icons.CheckCircle className="w-20 h-20 text-[#2E865F] mx-auto mb-6" />
                                 <h2 className="text-3xl font-bold mb-4">預約成功</h2>
                                 <p className="text-gray-400 mb-8">顧問將於 24 小時內與您聯繫</p>
                                 <button onClick={() => location.reload()} className="text-[#C5A059] font-bold border-b-2 border-[#C5A059]">重新開始旅程</button>
@@ -248,15 +279,21 @@
 
             const current = scenarioData[step];
             return (
-                <div className="min-h-screen flex flex-col md:flex-row overflow-hidden">
+                <div className="min-h-screen flex flex-col md:flex-row overflow-hidden paper-texture">
+                    {/* 視覺層 */}
                     <div className="w-full h-[40vh] md:h-screen md:w-1/2 bg-white flex items-center justify-center relative shadow-inner">
-                        {imgLoading && !imgCache[step] && <div className="animate-pulse text-[#C5A059] font-bold text-xs tracking-widest uppercase">繪製中...</div>}
-                        {imgCache[step] ? <img src={imgCache[step]} className="w-full h-full object-cover image-sketch fade-in" /> : <div className="text-gray-200"><ImageIcon size={48} /></div>}
+                        {imgLoading && !imgCache[step] && <div className="animate-pulse text-[#C5A059] font-bold text-xs tracking-widest uppercase">正在繪製生命素描...</div>}
+                        {imgCache[step] ? 
+                            <img src={imgCache[step]} className="w-full h-full object-cover image-sketch fade-in" alt="Sketch" /> : 
+                            <div className="text-gray-200"><Icons.ImageIcon size={48} /></div>
+                        }
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#FDFBF7] hidden md:block" />
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#FDFBF7] md:hidden block" />
                     </div>
-                    <div className="w-full h-[60vh] md:h-screen md:w-1/2 flex flex-col justify-center px-8 md:px-24 bg-[#FDFBF7] paper-texture">
+                    {/* 內容層 */}
+                    <div className="w-full h-[60vh] md:h-screen md:w-1/2 flex flex-col justify-center px-10 md:px-24">
                         <div className="max-w-xl mx-auto w-full">
-                            <span className="text-[#C5A059] text-[10px] font-black tracking-widest uppercase block mb-12">Scene {step+1}</span>
+                            <span className="text-[#C5A059] text-[10px] font-black tracking-[0.6em] uppercase block mb-12">Scene {String(step+1).padStart(2, '0')}</span>
                             <div key={step} className="fade-in">
                                 <p className="text-4xl md:text-5xl font-story font-bold mb-12 leading-tight italic text-[#2D3436]">「{current.scenario}」</p>
                                 <h2 className="text-gray-400 text-lg md:text-xl font-medium mb-12 border-l-4 pl-8 border-[#C5A059]/20">{current.query}</h2>
@@ -264,18 +301,19 @@
                                     {current.options.map((opt, i) => (
                                         <button key={i} onClick={() => handleSelect(i)} className="w-full text-left p-6 rounded-2xl border hover:border-[#C5A059] hover:bg-white transition-all btn-active group flex items-center justify-between bg-white/50">
                                             <span className="text-lg font-medium text-gray-700 group-hover:text-[#C5A059]">{opt}</span>
-                                            <ChevronRight className="text-gray-200 group-hover:text-[#C5A059]" />
+                                            <Icons.ChevronRight className="text-gray-200 group-hover:text-[#C5A059]" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
                             <footer className="mt-20 flex items-center gap-10">
                                 <button className={`p-3 rounded-full border text-gray-300 ${step === 0 ? 'opacity-0 pointer-events-none' : 'hover:border-[#C5A059] hover:text-[#C5A059]'}`} onClick={() => setStep(step - 1)}>
-                                    <ArrowLeft size={24} />
+                                    <Icons.ArrowLeft size={24} />
                                 </button>
                                 <div className="flex-1 bg-gray-100 h-0.5 rounded-full overflow-hidden">
-                                    <div className="bg-[#C5A059] h-full transition-all duration-1000" style={{ width: `${((step + 1) / 10) * 100}%` }} />
+                                    <div className="bg-[#C5A059] h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(197,160,89,0.3)]" style={{ width: `${((step + 1) / 10) * 100}%` }} />
                                 </div>
+                                <span className="text-[10px] font-bold text-gray-400 tracking-widest">{step + 1} / 10</span>
                             </footer>
                         </div>
                     </div>
